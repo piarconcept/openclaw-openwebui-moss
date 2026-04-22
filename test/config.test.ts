@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultConfig,
   isPluginConfigured,
+  loadPluginConfigFromFile,
   normalizePluginConfig,
   resolveOpenClawGatewayToken,
   validateRuntimeConfig,
@@ -165,6 +166,41 @@ describe('resolveOpenClawGatewayToken', () => {
           OPENCLAW_CONFIG_PATH: configPath,
         }),
       ).resolves.toBe('config-token');
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('loadPluginConfigFromFile', () => {
+  it('reads the plugin config embedded inside openclaw.json', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'moss-plugin-config-'));
+    const configPath = join(tempDir, 'openclaw.json');
+    const pluginConfig = buildBaseConfig();
+
+    try {
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          plugins: {
+            entries: {
+              'openclaw-openwebui-moss': {
+                enabled: true,
+                config: pluginConfig,
+              },
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      const loaded = await loadPluginConfigFromFile(configPath);
+
+      expect(loaded.loadIssues).toEqual([]);
+      expect(loaded.config.baseUrl).toBe(pluginConfig.baseUrl);
+      expect(loaded.config.allowedChannels).toEqual(pluginConfig.allowedChannels);
+      expect(loaded.config.allowedUsers).toEqual(pluginConfig.allowedUsers);
+      expect(loaded.config.agents.dev).toEqual(pluginConfig.agents.dev);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

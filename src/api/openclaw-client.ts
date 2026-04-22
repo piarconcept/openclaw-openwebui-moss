@@ -90,6 +90,22 @@ function summarizeErrorBody(body: string): string {
   return normalized.length > 300 ? `${normalized.slice(0, 297)}...` : normalized;
 }
 
+function buildUpstreamErrorMessage(status: number, body: string): string {
+  const summary = summarizeErrorBody(body);
+
+  if (status === 404 && summary === 'Not Found') {
+    return (
+      'OpenClaw /v1/chat/completions returned HTTP 404: Not Found. ' +
+      'The Gateway OpenAI-compatible chat endpoint is likely disabled; enable ' +
+      'gateway.http.endpoints.chatCompletions.enabled in openclaw.json'
+    );
+  }
+
+  return summary === ''
+    ? `OpenClaw /v1/chat/completions returned HTTP ${status}`
+    : `OpenClaw /v1/chat/completions returned HTTP ${status}: ${summary}`;
+}
+
 export class OpenClawChatClient {
   private readonly gatewayToken: string | undefined;
 
@@ -156,12 +172,9 @@ export class OpenClawChatClient {
 
       if (!response.ok) {
         const body = await response.text();
-        const summary = summarizeErrorBody(body);
         throw new IntegrationError(
           'OPENCLAW_CHAT_FAILED',
-          summary === ''
-            ? `OpenClaw /v1/chat/completions returned HTTP ${response.status}`
-            : `OpenClaw /v1/chat/completions returned HTTP ${response.status}: ${summary}`,
+          buildUpstreamErrorMessage(response.status, body),
           {
             status: response.status,
             body,

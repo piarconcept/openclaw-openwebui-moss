@@ -155,6 +155,10 @@ If `OPENCLAW_GATEWAY_TOKEN` is not set, the provider falls back to reading
 `$OPENCLAW_CONFIG_PATH`, or `~/.openclaw/openclaw.json`, and uses
 `gateway.auth.token` when the OpenClaw gateway is configured in token mode.
 
+When the provider runs embedded as an OpenClaw plugin, it also reads its plugin
+configuration from `plugins.entries.openclaw-openwebui-moss.config` inside
+`$OPENCLAW_CONFIG_PATH` or `~/.openclaw/openclaw.json` by default.
+
 Development mode:
 
 ```bash

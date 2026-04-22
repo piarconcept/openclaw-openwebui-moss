@@ -635,7 +635,10 @@ export async function loadPluginConfigFromFile(filePath: string): Promise<Loaded
     };
   }
 
-  return normalizePluginConfig(parsed);
+  const embeddedPluginConfig = extractPluginConfigFromOpenClawConfig(parsed);
+  return normalizePluginConfig(
+    embeddedPluginConfig ?? (parsed as PluginConfigInput),
+  );
 }
 
 function readPositiveIntegerEnv(name: string, value: string | undefined, fallback: number): number {
@@ -702,6 +705,30 @@ function extractGatewayTokenFromOpenClawConfig(config: unknown): string | undefi
   return token === '' ? undefined : token;
 }
 
+function extractPluginConfigFromOpenClawConfig(config: unknown): PluginConfigInput | undefined {
+  if (!isRecord(config)) {
+    return undefined;
+  }
+
+  const plugins = config.plugins;
+  if (!isRecord(plugins)) {
+    return undefined;
+  }
+
+  const entries = plugins.entries;
+  if (!isRecord(entries)) {
+    return undefined;
+  }
+
+  const pluginEntry = entries[PLUGIN_ID];
+  if (!isRecord(pluginEntry)) {
+    return undefined;
+  }
+
+  const pluginConfig = pluginEntry.config;
+  return isRecord(pluginConfig) ? (pluginConfig as PluginConfigInput) : undefined;
+}
+
 export async function resolveOpenClawGatewayToken(
   env: Record<string, string | undefined> = process.env,
 ): Promise<string | undefined> {
@@ -730,7 +757,10 @@ export function loadRuntimeSettings(env: Record<string, string | undefined> = pr
   }
 
   return {
-    configPath: env.OPENWEBUI_MOSS_CONFIG_PATH ?? join(process.cwd(), 'config', 'plugin.config.json'),
+    configPath:
+      env.OPENWEBUI_MOSS_CONFIG_PATH ??
+      env.OPENCLAW_CONFIG_PATH ??
+      join(env.OPENCLAW_HOME?.trim() || join(homedir(), '.openclaw'), 'openclaw.json'),
     openClawApiUrl: validateAbsoluteUrl(
       'OPENCLAW_API_URL',
       env.OPENCLAW_API_URL ?? 'http://127.0.0.1:18789/v1/chat/completions',

@@ -304,4 +304,36 @@ describe('openclaw chat client', () => {
         'OpenClaw /v1/chat/completions returned HTTP 401: {"error":{"message":"Unauthorized"}}',
     });
   });
+
+  it('explains the likely OpenClaw config issue when the chat endpoint is disabled', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('Not Found', {
+          status: 404,
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+        }),
+      ),
+    );
+
+    const client = new OpenClawChatClient(
+      'http://127.0.0.1:18789/v1/chat/completions',
+      'openai-codex/gpt-5.4',
+      1000,
+      createLogger(),
+    );
+
+    await expect(
+      client.chat({
+        agentId: 'main',
+        message: 'Prompt body',
+      }),
+    ).rejects.toMatchObject<Partial<IntegrationError>>({
+      code: 'OPENCLAW_CHAT_FAILED',
+      message:
+        'OpenClaw /v1/chat/completions returned HTTP 404: Not Found. The Gateway OpenAI-compatible chat endpoint is likely disabled; enable gateway.http.endpoints.chatCompletions.enabled in openclaw.json',
+    });
+  });
 });
