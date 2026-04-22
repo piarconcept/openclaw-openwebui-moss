@@ -43,6 +43,13 @@ interface OpenClawChatClientLike {
   chat(request: OpenClawChatRequest): Promise<OpenClawChatResponse>;
 }
 
+export interface ProviderExecutionStatus {
+  enabled: boolean;
+  status: number;
+  code: string;
+  message: string;
+}
+
 export class ProviderRequestError extends Error {
   public constructor(
     public readonly status: number,
@@ -106,13 +113,18 @@ export function buildModelPrompt(model: ModelDefinition, userMessage: string): s
 
 export class MossOpenAIProviderService {
   private readonly logger: Logger;
+  private readonly getExecutionStatus: (() => ProviderExecutionStatus) | undefined;
 
   public constructor(
     private readonly registry: ModelWorkspaceRegistry,
     private readonly openClawClient: OpenClawChatClientLike,
     logger: Logger,
+    options?: {
+      getExecutionStatus?: () => ProviderExecutionStatus;
+    },
   ) {
     this.logger = logger.child({ component: 'moss-openai-provider' });
+    this.getExecutionStatus = options?.getExecutionStatus;
   }
 
   public async listModels(): Promise<OpenAIModelListResponse> {
@@ -130,6 +142,15 @@ export class MossOpenAIProviderService {
   public async createChatCompletion(
     request: OpenAIChatCompletionRequest,
   ): Promise<OpenAIChatCompletionResponse> {
+    const executionStatus = this.getExecutionStatus?.();
+    if (executionStatus && !executionStatus.enabled) {
+      throw new ProviderRequestError(
+        executionStatus.status,
+        executionStatus.code,
+        executionStatus.message,
+      );
+    }
+
     if (request.stream === true) {
       throw new ProviderRequestError(
         400,

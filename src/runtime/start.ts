@@ -1,3 +1,6 @@
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 import { OpenClawChatClient } from '../api/openclaw-client.js';
 import { createWebUIAuthSession } from '../api/webui-auth.js';
 import { WebUIClient } from '../api/webui-client.js';
@@ -13,6 +16,7 @@ import {
   prepareAttachmentDirectory,
   validateRuntimeConfig,
 } from '../config.js';
+import { startProviderServer } from '../provider/server.js';
 import { WebUISocketGateway } from '../realtime/socket.js';
 import { AgentRouter } from '../routing/agent-routing.js';
 import { SecureMessageRouter } from '../routing/router.js';
@@ -20,6 +24,7 @@ import { BasicRateLimiter, LoopProtector } from '../security/access-control.js';
 import type { ValidatedPluginConfig } from '../types/config.js';
 import { AuthenticationError } from '../utils/errors.js';
 import { createLogger, type LogMeta, type Logger } from '../utils/logger.js';
+import type { ProviderExecutionStatus } from '../provider/service.js';
 
 interface HostLoggerLike {
   debug?: (message: string, meta?: unknown) => void;
@@ -50,6 +55,39 @@ export interface ServiceInstance {
   logger: Logger;
   start(): Promise<ServiceStartResult>;
   stop(): Promise<void>;
+}
+
+const DEFAULT_EMBEDDED_PROVIDER_HOST = '127.0.0.1';
+const DEFAULT_EMBEDDED_PROVIDER_PORT = 18790;
+
+interface EmbeddedProviderSettings {
+  host: string;
+  port: number;
+  modelsRootDir: string;
+}
+
+function parseEmbeddedProviderPort(value: string | undefined): number {
+  if (!value) {
+    return DEFAULT_EMBEDDED_PROVIDER_PORT;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || parsed > 65535) {
+    throw new Error('MOSS_PROVIDER_PORT must be an integer between 0 and 65535');
+  }
+
+  return parsed;
+}
+
+function loadEmbeddedProviderSettings(
+  env: Record<string, string | undefined> = process.env,
+): EmbeddedProviderSettings {
+  return {
+    host: env.MOSS_PROVIDER_HOST ?? env.HOST ?? DEFAULT_EMBEDDED_PROVIDER_HOST,
+    port: parseEmbeddedProviderPort(env.MOSS_PROVIDER_PORT ?? env.PORT),
+    modelsRootDir:
+      env.MOSS_MODELS_DIR ?? join(homedir(), '.openclaw', 'workspace', 'moss-models'),
+  };
 }
 
 class HostLoggerAdapter implements Logger {
@@ -138,6 +176,7 @@ function assertValidatedConfig(config: ValidatedPluginConfig | Parameters<typeof
 
 export async function createService(options?: CreateServiceOptions): Promise<ServiceInstance> {
   const runtime = loadRuntimeSettings(process.env);
+  const providerSettings = loadEmbeddedProviderSettings(process.env);
   const logger =
     options?.logger ??
     createLogger({
@@ -149,33 +188,73 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
 
   const loaded = await loadPluginConfigFromFile(runtime.configPath);
   let gateway: WebUISocketGateway | null = null;
-  let started = false;
+  let providerServer: Awaited<ReturnType<typeof startProviderServer>> | null = null;
+  let startResult: ServiceStartResult | null = null;
+  const providerExecutionStatus: ProviderExecutionStatus = {
+    enabled: false,
+    status: 503,
+    code: 'plugin_not_configured',
+    message: 'Plugin not configured',
+  };
 
   return {
     logger,
     async start(): Promise<ServiceStartResult> {
-      if (started) {
-        return {
-          active: true,
-          reason: 'started',
-        };
+      if (startResult) {
+        return startResult;
       }
+
+      providerServer = await startProviderServer({
+        host: providerSettings.host,
+        port: providerSettings.port,
+        modelsRootDir: providerSettings.modelsRootDir,
+        openClawApiUrl: runtime.openClawApiUrl,
+        openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
+        logger,
+        getExecutionStatus: () => providerExecutionStatus,
+      });
+
+      const disableExecution = (
+        reason: Exclude<ServiceStartResult['reason'], 'started'>,
+        status: Omit<ProviderExecutionStatus, 'enabled'>,
+      ): ServiceStartResult => {
+        Object.assign(providerExecutionStatus, {
+          enabled: false,
+          ...status,
+        });
+        startResult = {
+          active: false,
+          reason,
+        };
+        return startResult;
+      };
+
+      const enableExecution = (): void => {
+        Object.assign(providerExecutionStatus, {
+          enabled: true,
+          status: 200,
+          code: 'enabled',
+          message: 'Provider execution enabled',
+        });
+      };
 
       if (!isPluginConfigured(loaded.config)) {
         logDisabledState(logger, loaded.loadIssues);
-        return {
-          active: false,
-          reason: 'disabled-unconfigured',
-        };
+        return disableExecution('disabled-unconfigured', {
+          status: 503,
+          code: 'plugin_not_configured',
+          message: 'Plugin not configured',
+        });
       }
 
       const runtimeIssues = [...loaded.loadIssues, ...validateRuntimeConfig(loaded.config)];
       if (runtimeIssues.length > 0) {
         logDisabledState(logger, runtimeIssues);
-        return {
-          active: false,
-          reason: 'disabled-invalid-config',
-        };
+        return disableExecution('disabled-invalid-config', {
+          status: 503,
+          code: 'plugin_invalid_config',
+          message: 'Plugin configuration is invalid',
+        });
       }
 
       assertValidatedConfig(loaded.config);
@@ -195,10 +274,11 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         await authSession.getToken();
       } catch (error) {
         logAuthenticationFailure(logger, error);
-        return {
-          active: false,
-          reason: 'disabled-auth-failed',
-        };
+        return disableExecution('disabled-auth-failed', {
+          status: 503,
+          code: 'plugin_auth_failed',
+          message: 'Plugin authentication failed',
+        });
       }
 
       await prepareAttachmentDirectory(config);
@@ -256,16 +336,17 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
 
         if (error instanceof AuthenticationError) {
           logAuthenticationFailure(logger, error);
-          return {
-            active: false,
-            reason: 'disabled-auth-failed',
-          };
+          return disableExecution('disabled-auth-failed', {
+            status: 503,
+            code: 'plugin_auth_failed',
+            message: 'Plugin authentication failed',
+          });
         }
 
         throw error;
       }
 
-      started = true;
+      enableExecution();
       logger.info('Service started', {
         allowedChannelCount: config.allowedChannels.length,
         allowedUserCount: config.allowedUsers.length,
@@ -273,20 +354,35 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         authMode: config.auth.mode,
       });
 
-      return {
+      startResult = {
         active: true,
         reason: 'started',
       };
+      return startResult;
     },
     async stop() {
-      if (!gateway) {
+      if (!gateway && !providerServer) {
         logger.info('Service stopped');
         return;
       }
 
-      await gateway.stop();
-      gateway = null;
-      started = false;
+      if (gateway) {
+        await gateway.stop();
+        gateway = null;
+      }
+
+      if (providerServer) {
+        await providerServer.close();
+        providerServer = null;
+      }
+
+      startResult = null;
+      Object.assign(providerExecutionStatus, {
+        enabled: false,
+        status: 503,
+        code: 'plugin_stopped',
+        message: 'Plugin stopped',
+      });
       logger.info('Service stopped');
     },
   };

@@ -4,6 +4,18 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const { closeProviderServerMock, startProviderServerMock } = vi.hoisted(() => ({
+  closeProviderServerMock: vi.fn(async () => {}),
+  startProviderServerMock: vi.fn(async () => ({
+    server: {} as never,
+    close: closeProviderServerMock,
+  })),
+}));
+
+vi.mock('../src/provider/server.js', () => ({
+  startProviderServer: startProviderServerMock,
+}));
+
 import { createService } from '../src/runtime/start.js';
 import type { Logger } from '../src/utils/logger.js';
 import { buildPasswordConfig } from './fixtures.js';
@@ -39,16 +51,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
+  startProviderServerMock.mockClear();
+  closeProviderServerMock.mockClear();
 });
 
 describe('runtime auth handling', () => {
-  it('disables the plugin safely when bot authentication fails', async () => {
+  it('disables the plugin safely when bot authentication fails without disabling the provider server', async () => {
     const tempDir = await mkdtemp(join(tmpdir(), 'moss-auth-failure-'));
     const configPath = join(tempDir, 'plugin.config.json');
     await writeFile(configPath, JSON.stringify(buildPasswordConfig()), 'utf8');
 
     vi.stubEnv('OPENWEBUI_MOSS_CONFIG_PATH', configPath);
     vi.stubEnv('OPENCLAW_API_URL', 'http://127.0.0.1:3000/api/chat');
+    vi.stubEnv('MOSS_PROVIDER_HOST', '127.0.0.1');
+    vi.stubEnv('MOSS_PROVIDER_PORT', '18790');
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -69,6 +85,14 @@ describe('runtime auth handling', () => {
 
       expect(result.active).toBe(false);
       expect(result.reason).toBe('disabled-auth-failed');
+      expect(startProviderServerMock).toHaveBeenCalledTimes(1);
+      const options = startProviderServerMock.mock.calls[0]?.[0];
+      expect(options.getExecutionStatus?.()).toEqual({
+        enabled: false,
+        status: 503,
+        code: 'plugin_auth_failed',
+        message: 'Plugin authentication failed',
+      });
       expect(
         entries.some(
           (entry) =>
@@ -77,6 +101,7 @@ describe('runtime auth handling', () => {
       ).toBe(true);
     } finally {
       await service.stop();
+      expect(closeProviderServerMock).toHaveBeenCalledTimes(1);
       await rm(tempDir, { recursive: true, force: true });
     }
   });

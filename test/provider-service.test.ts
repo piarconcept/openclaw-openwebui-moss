@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ModelWorkspaceRegistry } from '../src/provider/registry.js';
 import { MossOpenAIProviderService } from '../src/provider/service.js';
+import type { ProviderRequestError } from '../src/provider/service.js';
 import type { OpenClawChatResponse } from '../src/types/messages.js';
 import type { Logger } from '../src/utils/logger.js';
 
@@ -86,5 +87,69 @@ describe('moss openai provider service', () => {
     expect(request?.message).toContain('User:\nRefactor this safely.');
     expect(completion.choices[0]?.message.content).toBe('Done.');
     expect(completion.model).toBe('moss-dev');
+  });
+
+  it('keeps model listing available while execution is disabled and rejects chat safely', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'moss-provider-disabled-'));
+    tempDirectories.push(root);
+
+    const modelDir = join(root, 'moss-dev');
+    await mkdir(modelDir, { recursive: true });
+    await writeFile(join(modelDir, 'IDENTITY.md'), 'You are Moss Dev.', 'utf8');
+
+    const registry = new ModelWorkspaceRegistry({
+      modelsRootDir: root,
+      logger: createLogger(),
+    });
+    const chat = vi.fn<
+      (request: { agentId: string; message: string }) => Promise<OpenClawChatResponse>
+    >().mockResolvedValue({
+      text: 'Done.',
+      attachments: [],
+      raw: {},
+    });
+
+    const service = new MossOpenAIProviderService(
+      registry,
+      { chat } as { chat: typeof chat },
+      createLogger(),
+      {
+        getExecutionStatus: () => ({
+          enabled: false,
+          status: 503,
+          code: 'plugin_not_configured',
+          message: 'Plugin not configured',
+        }),
+      },
+    );
+
+    expect(await service.listModels()).toEqual({
+      object: 'list',
+      data: [
+        {
+          id: 'moss-dev',
+          object: 'model',
+        },
+      ],
+    });
+
+    await expect(
+      service.createChatCompletion({
+        model: 'moss-dev',
+        messages: [
+          {
+            role: 'user',
+            content: 'Can you help?',
+          },
+        ],
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<ProviderRequestError>>({
+        status: 503,
+        code: 'plugin_not_configured',
+        message: 'Plugin not configured',
+      }),
+    );
+    expect(chat).not.toHaveBeenCalled();
   });
 });

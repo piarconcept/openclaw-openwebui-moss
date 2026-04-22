@@ -3,7 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { OpenClawChatClient } from '../api/openclaw-client.js';
 import type { Logger } from '../utils/logger.js';
 import { ModelWorkspaceRegistry } from './registry.js';
-import { MossOpenAIProviderService, ProviderRequestError } from './service.js';
+import {
+  MossOpenAIProviderService,
+  ProviderRequestError,
+  type ProviderExecutionStatus,
+} from './service.js';
 import type { OpenAIChatCompletionRequest } from './types.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -17,6 +21,7 @@ interface ProviderServerOptions {
   openClawApiUrl: string;
   openClawTimeoutMs: number;
   logger: Logger;
+  getExecutionStatus?: () => ProviderExecutionStatus;
 }
 
 interface ProviderServerHandle {
@@ -101,7 +106,16 @@ export async function startProviderServer(
     options.openClawTimeoutMs,
     logger,
   );
-  const provider = new MossOpenAIProviderService(registry, openClawClient, logger);
+  const provider = new MossOpenAIProviderService(
+    registry,
+    openClawClient,
+    logger,
+    options.getExecutionStatus
+      ? {
+          getExecutionStatus: options.getExecutionStatus,
+        }
+      : undefined,
+  );
   const startupModels = await registry.list();
 
   const server = createServer(async (request, response) => {
@@ -157,9 +171,14 @@ export async function startProviderServer(
     };
     const onListening = () => {
       server.off('error', onError);
+      const address = server.address();
+      const actualPort =
+        address && typeof address === 'object' && typeof address.port === 'number'
+          ? address.port
+          : port;
       logger.info('Moss OpenAI-compatible provider started', {
         host,
-        port,
+        port: actualPort,
         modelsRootDir: options.modelsRootDir,
         modelCount: startupModels.length,
         modelIds: startupModels.map((model) => model.id),
