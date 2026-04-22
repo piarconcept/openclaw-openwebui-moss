@@ -1,7 +1,7 @@
 {
   "name": "@moss/openclaw-openwebui-moss",
   "version": "0.1.0",
-  "description": "Production-ready OpenClaw plugin and bridge for secure Open WebUI channel integration with Moss agents.",
+  "description": "OpenAI-compatible model provider that exposes filesystem-backed Moss models for Open WebUI via OpenClaw.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,12 +17,16 @@
     "CHANGELOG.md"
   ],
   "bin": {
-    "openclaw-openwebui-moss": "dist/standalone.js",
-    "openclaw-openwebui-moss-provider": "dist/provider-standalone.js"
+    "openclaw-openwebui-moss": "dist/provider-standalone.js",
+    "openclaw-openwebui-moss-provider": "dist/provider-standalone.js",
+    "openclaw-openwebui-moss-bridge": "dist/standalone.js"
   },
   "scripts": {
-    "dev": "tsx watch src/standalone.ts",
+    "dev": "tsx watch src/provider-standalone.ts",
+    "dev:bridge": "tsx watch src/standalone.ts",
     "dev:provider": "tsx watch src/provider-standalone.ts",
+    "start": "node dist/provider-standalone.js",
+    "start:bridge": "node dist/standalone.js",
     "start:provider": "node dist/provider-standalone.js",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
@@ -34,10 +38,11 @@
     "openclaw",
     "open-webui",
     "moss",
-    "plugin",
-    "socketio",
+    "provider",
     "openai-compatible",
-    "provider"
+    "filesystem-models",
+    "agent-routing",
+    "plugin"
   ],
   "openclaw": {
     "extensions": [

@@ -1,16 +1,19 @@
 services:
-  openclaw-openwebui-moss:
+  openclaw-openwebui-moss-provider:
     build:
       context: .
       dockerfile: Dockerfile
-    image: moss/openclaw-openwebui-moss:local
+    image: moss/openclaw-openwebui-moss-provider:local
     restart: unless-stopped
     environment:
-      OPENWEBUI_MOSS_CONFIG_PATH: /app/config/plugin.config.json
       OPENCLAW_API_URL: http://host.docker.internal:3000/api/chat
+      MOSS_MODELS_DIR: /app/moss-models
+      MOSS_PROVIDER_HOST: 0.0.0.0
+      MOSS_PROVIDER_PORT: 4000
       LOG_LEVEL: info
+    ports:
+      - "4000:4000"
     volumes:
-      - ./config:/app/config:ro
-      - ./tmp:/app/tmp
+      - ${HOME}/.openclaw/workspace/moss-models:/app/moss-models:ro
     extra_hosts:
       - host.docker.internal:host-gateway

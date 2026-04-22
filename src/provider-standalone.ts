@@ -30,19 +30,17 @@ const logger = createLogger({
   },
 });
 
-const handle = startProviderServer({
-  host,
-  port,
-  modelsRootDir,
-  openClawApiUrl: runtime.openClawApiUrl,
-  openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
-  logger,
-});
+let handle: Awaited<ReturnType<typeof startProviderServer>> | null = null;
 
 async function shutdown(signal: 'SIGINT' | 'SIGTERM'): Promise<void> {
   logger.info('Shutting down Moss provider server', {
     signal,
   });
+  if (!handle) {
+    process.exitCode = 0;
+    return;
+  }
+
   try {
     await handle.close();
     process.exitCode = 0;
@@ -61,3 +59,21 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   void shutdown('SIGTERM');
 });
+
+void (async () => {
+  try {
+    handle = await startProviderServer({
+      host,
+      port,
+      modelsRootDir,
+      openClawApiUrl: runtime.openClawApiUrl,
+      openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
+      logger,
+    });
+  } catch (error) {
+    logger.error('Failed to start Moss provider server', {
+      error,
+    });
+    process.exitCode = 1;
+  }
+})();

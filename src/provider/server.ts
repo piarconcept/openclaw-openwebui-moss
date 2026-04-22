@@ -82,7 +82,9 @@ function toJsonErrorBody(error: ProviderRequestError): JsonErrorBody {
   };
 }
 
-export function startProviderServer(options: ProviderServerOptions): ProviderServerHandle {
+export async function startProviderServer(
+  options: ProviderServerOptions,
+): Promise<ProviderServerHandle> {
   const host = options.host ?? DEFAULT_HOST;
   const port = options.port ?? DEFAULT_PORT;
   const logger = options.logger.child({
@@ -100,6 +102,7 @@ export function startProviderServer(options: ProviderServerOptions): ProviderSer
     logger,
   );
   const provider = new MossOpenAIProviderService(registry, openClawClient, logger);
+  const startupModels = await registry.list();
 
   const server = createServer(async (request, response) => {
     try {
@@ -147,12 +150,26 @@ export function startProviderServer(options: ProviderServerOptions): ProviderSer
     }
   });
 
-  server.listen(port, host, () => {
-    logger.info('Moss OpenAI-compatible provider started', {
-      host,
-      port,
-      modelsRootDir: options.modelsRootDir,
-    });
+  await new Promise<void>((resolve, reject) => {
+    const onError = (error: Error) => {
+      server.off('listening', onListening);
+      reject(error);
+    };
+    const onListening = () => {
+      server.off('error', onError);
+      logger.info('Moss OpenAI-compatible provider started', {
+        host,
+        port,
+        modelsRootDir: options.modelsRootDir,
+        modelCount: startupModels.length,
+        modelIds: startupModels.map((model) => model.id),
+      });
+      resolve();
+    };
+
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, host);
   });
 
   return {

@@ -12,7 +12,6 @@ import type {
 interface OpenAIModelListEntry {
   id: string;
   object: 'model';
-  owned_by: 'moss';
 }
 
 interface OpenAIModelListResponse {
@@ -124,7 +123,6 @@ export class MossOpenAIProviderService {
       data: models.map((model) => ({
         id: model.id,
         object: 'model',
-        owned_by: 'moss',
       })),
     };
   }

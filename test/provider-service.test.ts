@@ -61,7 +61,6 @@ describe('moss openai provider service', () => {
       {
         id: 'moss-dev',
         object: 'model',
-        owned_by: 'moss',
       },
     ]);
 
