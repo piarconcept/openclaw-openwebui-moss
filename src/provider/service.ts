@@ -202,7 +202,8 @@ export class MossOpenAIProviderService {
         messages: sessionMessages,
       });
     } catch (error) {
-      this.logger.error('OpenClaw call failed while serving chat completion', {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`OpenClaw call failed while serving chat completion: ${message}`, {
         error,
         modelId: model.id,
       });

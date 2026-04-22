@@ -65,6 +65,7 @@ describe('openclaw chat client', () => {
         headers: {
           'Content-Type': 'application/json',
           Authorization: 'Bearer gateway-token',
+          'x-openclaw-model': 'openai-codex/gpt-5.4',
         },
       }),
     );
@@ -116,9 +117,10 @@ describe('openclaw chat client', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-openclaw-model': 'openai-codex/gpt-5.4',
         },
         body: JSON.stringify({
-          model: 'openai-codex/gpt-5.4',
+          model: 'openclaw/main',
           messages: [
             {
               role: 'user',
@@ -192,8 +194,12 @@ describe('openclaw chat client', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       'http://127.0.0.1:18789/v1/chat/completions',
       expect.objectContaining({
+        headers: {
+          'Content-Type': 'application/json',
+          'x-openclaw-model': 'openai-codex/gpt-5.4',
+        },
         body: JSON.stringify({
-          model: 'openai-codex/gpt-5.4',
+          model: 'openclaw/main',
           messages: [
             {
               role: 'system',
@@ -216,6 +222,55 @@ describe('openclaw chat client', () => {
       }),
     );
     expect(response.text).toBe('History preserved.');
+  });
+
+  it('forwards session keys through the documented header', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [
+            {
+              message: {
+                role: 'assistant',
+                content: 'Session kept.',
+              },
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        },
+      ),
+    );
+
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new OpenClawChatClient(
+      'http://127.0.0.1:18789/v1/chat/completions',
+      'openai-codex/gpt-5.4',
+      1000,
+      createLogger(),
+    );
+
+    await client.chat({
+      agentId: 'main',
+      sessionKey: 'session-123',
+      message: 'Prompt body',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:18789/v1/chat/completions',
+      expect.objectContaining({
+        headers: {
+          'Content-Type': 'application/json',
+          'x-openclaw-model': 'openai-codex/gpt-5.4',
+          'x-openclaw-session-key': 'session-123',
+        },
+      }),
+    );
   });
 
   it('surfaces upstream HTTP details when OpenClaw rejects the request', async () => {

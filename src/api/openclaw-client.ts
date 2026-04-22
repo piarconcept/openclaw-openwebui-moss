@@ -72,6 +72,15 @@ function normalizeChatCompletionText(payload: unknown): string {
   return typeof message.content === 'string' ? message.content : '';
 }
 
+function resolveOpenClawAgentTarget(agentId: string): string {
+  const normalized = agentId.trim();
+  if (normalized === '' || normalized === 'default') {
+    return 'openclaw/default';
+  }
+
+  return `openclaw/${normalized}`;
+}
+
 function summarizeErrorBody(body: string): string {
   const normalized = body.replace(/\s+/gu, ' ').trim();
   if (normalized === '') {
@@ -86,7 +95,7 @@ export class OpenClawChatClient {
 
   public constructor(
     private readonly apiUrl: string,
-    private readonly model: string,
+    private readonly backendModel: string,
     private readonly timeoutMs: number,
     private readonly logger: Logger,
     gatewayToken?: string,
@@ -105,6 +114,12 @@ export class OpenClawChatClient {
       };
       if (this.gatewayToken) {
         headers.Authorization = `Bearer ${this.gatewayToken}`;
+      }
+      if (this.backendModel.trim() !== '') {
+        headers['x-openclaw-model'] = this.backendModel;
+      }
+      if (typeof request.sessionKey === 'string' && request.sessionKey.trim() !== '') {
+        headers['x-openclaw-session-key'] = request.sessionKey;
       }
       if (typeof request.correlationId === 'string' && request.correlationId.trim() !== '') {
         headers['X-Correlation-Id'] = request.correlationId;
@@ -133,7 +148,7 @@ export class OpenClawChatClient {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: this.model,
+          model: resolveOpenClawAgentTarget(request.agentId),
           messages,
         }),
         signal: controller.signal,
@@ -169,7 +184,8 @@ export class OpenClawChatClient {
         raw: payload,
       };
     } catch (error) {
-      this.logger.error('OpenClaw chat request failed', {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`OpenClaw chat request failed: ${message}`, {
         error,
       });
       throw error;
