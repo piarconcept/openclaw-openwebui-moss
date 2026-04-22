@@ -75,12 +75,16 @@ export class OpenClawChatClient {
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (typeof request.correlationId === 'string' && request.correlationId.trim() !== '') {
+        headers['X-Correlation-Id'] = request.correlationId;
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Correlation-Id': request.correlationId,
-        },
+        headers,
         body: JSON.stringify(request),
         signal: controller.signal,
       });

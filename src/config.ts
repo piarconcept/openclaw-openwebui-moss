@@ -673,7 +673,7 @@ export function loadRuntimeSettings(env: Record<string, string | undefined> = pr
     configPath: env.OPENWEBUI_MOSS_CONFIG_PATH ?? join(process.cwd(), 'config', 'plugin.config.json'),
     openClawApiUrl: validateAbsoluteUrl(
       'OPENCLAW_API_URL',
-      env.OPENCLAW_API_URL ?? 'http://127.0.0.1:3000/api/chat',
+      env.OPENCLAW_API_URL ?? 'http://127.0.0.1:18789/api/chat',
     ),
     openClawRequestTimeoutMs: readPositiveIntegerEnv(
       'OPENCLAW_REQUEST_TIMEOUT_MS',

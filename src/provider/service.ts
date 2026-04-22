@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import type { OpenClawChatRequest, OpenClawChatResponse } from '../types/messages.js';
-import { createCorrelationId, type Logger } from '../utils/logger.js';
+import type { Logger } from '../utils/logger.js';
 import type { ModelWorkspaceRegistry } from './registry.js';
 import type {
   ModelDefinition,
@@ -101,14 +101,7 @@ function extractLastUserMessage(messages: OpenAIChatMessage[]): string {
 }
 
 export function buildModelPrompt(model: ModelDefinition, userMessage: string): string {
-  const segments = [model.identity.trim()];
-
-  if (model.context.trim() !== '') {
-    segments.push(`Context:\n${model.context}`);
-  }
-
-  segments.push(`User:\n${userMessage.trim()}`);
-  return segments.join('\n\n');
+  return `${model.identity.trim()}\n\nUser:\n${userMessage.trim()}`;
 }
 
 export class MossOpenAIProviderService {
@@ -182,28 +175,17 @@ export class MossOpenAIProviderService {
     }
 
     const prompt = buildModelPrompt(model, lastUserMessage);
-    const correlationId = createCorrelationId(model.id);
-    const sessionKey = `openai-provider:${model.id}:${randomUUID()}`;
 
     let response: OpenClawChatResponse;
     try {
       response = await this.openClawClient.chat({
         agentId: model.agentId || 'main',
-        sessionKey,
-        correlationId,
         message: prompt,
-        metadata: {
-          provider: 'moss-openai-provider',
-          modelId: model.id,
-          workspacePath: model.workspacePath,
-        },
-        attachments: [],
       });
     } catch (error) {
       this.logger.error('OpenClaw call failed while serving chat completion', {
         error,
         modelId: model.id,
-        correlationId,
       });
       throw new ProviderRequestError(
         502,

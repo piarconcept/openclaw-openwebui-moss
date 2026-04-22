@@ -120,17 +120,12 @@ For a chat completion request, the provider:
 ```text
 <IDENTITY.md>
 
-Context:
-<concatenated context files>
-
 User:
 <last user message>
 ```
 
 6. Sends the prompt to OpenClaw `POST /api/chat`.
 7. Returns the answer as an OpenAI-compatible `chat.completion` payload.
-
-The provider adds `sessionKey`, `correlationId`, and lightweight metadata to the OpenClaw request for traceability, but the routing decision still comes entirely from the filesystem model definition.
 
 ## Run Locally
 
@@ -144,7 +139,7 @@ corepack pnpm build
 Start the provider:
 
 ```bash
-export OPENCLAW_API_URL=http://127.0.0.1:3000/api/chat
+export OPENCLAW_API_URL=http://127.0.0.1:18789/api/chat
 export MOSS_MODELS_DIR=$HOME/.openclaw/workspace/moss-models
 export MOSS_PROVIDER_PORT=4000
 node dist/provider-standalone.js
@@ -182,7 +177,7 @@ The included compose file:
 
 - exposes port `4000`
 - mounts `${HOME}/.openclaw/workspace/moss-models` into the container
-- points to `http://host.docker.internal:3000/api/chat` for OpenClaw by default
+- points to `http://host.docker.internal:18789/api/chat` for OpenClaw by default
 
 ## Project Defaults
 

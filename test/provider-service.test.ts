@@ -29,7 +29,7 @@ afterEach(async () => {
 });
 
 describe('moss openai provider service', () => {
-  it('lists filesystem models and builds prompts from identity plus context files', async () => {
+  it('lists filesystem models and sends a minimal OpenClaw chat payload', async () => {
     const root = await mkdtemp(join(tmpdir(), 'moss-provider-'));
     tempDirectories.push(root);
 
@@ -81,10 +81,10 @@ describe('moss openai provider service', () => {
 
     expect(chat).toHaveBeenCalledTimes(1);
     const request = chat.mock.calls[0]?.[0];
-    expect(request?.agentId).toBe('dev-agent');
-    expect(request?.message).toContain('You are Moss Dev.');
-    expect(request?.message).toContain('File: docs/architecture.md');
-    expect(request?.message).toContain('User:\nRefactor this safely.');
+    expect(request).toEqual({
+      agentId: 'dev-agent',
+      message: 'You are Moss Dev.\n\nUser:\nRefactor this safely.',
+    });
     expect(completion.choices[0]?.message.content).toBe('Done.');
     expect(completion.model).toBe('moss-dev');
   });

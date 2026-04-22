@@ -18,7 +18,7 @@ COPY --from=build /app/README.md ./README.md
 USER node
 ENV NODE_ENV=production
 ENV MOSS_MODELS_DIR=/app/moss-models
-ENV OPENCLAW_API_URL=http://host.docker.internal:3000/api/chat
+ENV OPENCLAW_API_URL=http://host.docker.internal:18789/api/chat
 ENV MOSS_PROVIDER_HOST=0.0.0.0
 ENV MOSS_PROVIDER_PORT=4000
 EXPOSE 4000
