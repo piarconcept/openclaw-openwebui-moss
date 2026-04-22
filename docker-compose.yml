@@ -1,0 +1,16 @@
+services:
+  openclaw-openwebui-moss:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: moss/openclaw-openwebui-moss:local
+    restart: unless-stopped
+    environment:
+      OPENWEBUI_MOSS_CONFIG_PATH: /app/config/plugin.config.json
+      OPENCLAW_API_URL: http://host.docker.internal:3000/api/chat
+      LOG_LEVEL: info
+    volumes:
+      - ./config/plugin.config.json:/app/config/plugin.config.json:ro
+      - ./tmp:/app/tmp
+    extra_hosts:
+      - host.docker.internal:host-gateway

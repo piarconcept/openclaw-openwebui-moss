@@ -1,0 +1,117 @@
+{
+  "id": "openclaw-openwebui-moss",
+  "name": "OpenClaw Open WebUI Moss",
+  "description": "Secure OpenClaw plugin for Open WebUI channels with Moss multi-agent routing.",
+  "version": "0.1.0",
+  "runtime": {
+    "node": ">=22.0.0"
+  },
+  "channels": ["open-webui"],
+  "entrypoint": "dist/index.js",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "baseUrl",
+      "token",
+      "botUserId",
+      "requireMention",
+      "allowedChannels",
+      "allowedUsers",
+      "agents",
+      "attachments",
+      "rateLimit"
+    ],
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "format": "uri"
+      },
+      "token": {
+        "type": "string",
+        "minLength": 1
+      },
+      "botUserId": {
+        "type": "string",
+        "minLength": 1
+      },
+      "requireMention": {
+        "type": "boolean"
+      },
+      "allowedChannels": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allowedUsers": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "agents": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["agentId"],
+          "properties": {
+            "channelId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "trigger": {
+              "type": "string",
+              "minLength": 1
+            },
+            "agentId": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      },
+      "attachments": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "maxBytes", "tempDir"],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "tempDir": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "rateLimit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["enabled", "windowMs", "maxMessages"],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "windowMs": {
+            "type": "integer",
+            "minimum": 1000
+          },
+          "maxMessages": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    }
+  }
+}
