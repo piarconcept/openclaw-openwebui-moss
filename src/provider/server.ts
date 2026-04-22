@@ -37,6 +37,21 @@ interface JsonErrorBody {
   };
 }
 
+interface StreamableChatCompletionResponse {
+  id: string;
+  object: 'chat.completion';
+  created: number;
+  model: string;
+  choices: Array<{
+    index: number;
+    message: {
+      role: 'assistant';
+      content: string;
+    };
+    finish_reason: 'stop';
+  }>;
+}
+
 function writeJson(
   response: ServerResponse,
   statusCode: number,
@@ -50,6 +65,99 @@ function writeJson(
   response.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
   response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   response.end(body);
+}
+
+function writeEventStreamHeaders(response: ServerResponse): void {
+  response.statusCode = 200;
+  response.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  response.setHeader('Cache-Control', 'no-cache, no-transform');
+  response.setHeader('Connection', 'keep-alive');
+  response.setHeader('X-Accel-Buffering', 'no');
+  response.setHeader('Access-Control-Allow-Origin', '*');
+  response.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
+  response.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  response.flushHeaders();
+}
+
+function writeEventStreamChunk(response: ServerResponse, payload: unknown): void {
+  response.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function writeEventStreamDone(response: ServerResponse): void {
+  response.write('data: [DONE]\n\n');
+  response.end();
+}
+
+export function buildChatCompletionStreamEvents(
+  payload: StreamableChatCompletionResponse,
+): unknown[] {
+  const firstChoice = payload.choices[0];
+  const index = firstChoice?.index ?? 0;
+  const content = firstChoice?.message.content ?? '';
+  const events: unknown[] = [
+    {
+      id: payload.id,
+      object: 'chat.completion.chunk',
+      created: payload.created,
+      model: payload.model,
+      choices: [
+        {
+          index,
+          delta: {
+            role: 'assistant',
+          },
+          finish_reason: null,
+        },
+      ],
+    },
+  ];
+
+  if (content !== '') {
+    events.push({
+      id: payload.id,
+      object: 'chat.completion.chunk',
+      created: payload.created,
+      model: payload.model,
+      choices: [
+        {
+          index,
+          delta: {
+            content,
+          },
+          finish_reason: null,
+        },
+      ],
+    });
+  }
+
+  events.push({
+    id: payload.id,
+    object: 'chat.completion.chunk',
+    created: payload.created,
+    model: payload.model,
+    choices: [
+      {
+        index,
+        delta: {},
+        finish_reason: 'stop',
+      },
+    ],
+  });
+
+  return events;
+}
+
+function streamChatCompletion(
+  response: ServerResponse,
+  payload: StreamableChatCompletionResponse,
+): void {
+  writeEventStreamHeaders(response);
+
+  for (const event of buildChatCompletionStreamEvents(payload)) {
+    writeEventStreamChunk(response, event);
+  }
+
+  writeEventStreamDone(response);
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -132,6 +240,15 @@ export async function startProviderServer(
 
       if (request.method === 'POST' && url.pathname === '/v1/chat/completions') {
         const body = (await readJsonBody(request)) as OpenAIChatCompletionRequest;
+        if (body.stream === true) {
+          const payload = await provider.createChatCompletion({
+            ...body,
+            stream: false,
+          });
+          streamChatCompletion(response, payload);
+          return;
+        }
+
         const payload = await provider.createChatCompletion(body);
         writeJson(response, 200, payload);
         return;
