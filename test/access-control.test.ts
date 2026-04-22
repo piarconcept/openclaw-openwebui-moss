@@ -44,6 +44,11 @@ describe('access control', () => {
     expect(() => assertAllowedUser('user-1', ['user-1'])).not.toThrow();
   });
 
+  it('allows any channel and user when wildcard entries are configured', () => {
+    expect(() => assertAllowedChannel('channel-anything', ['*'])).not.toThrow();
+    expect(() => assertAllowedUser('user-anything', ['*'])).not.toThrow();
+  });
+
   it('rejects unknown channels and users', () => {
     expect(() => assertAllowedChannel('channel-x', ['channel-editorial'])).toThrowError(
       AuthorizationError,

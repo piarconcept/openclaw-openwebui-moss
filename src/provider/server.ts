@@ -6,7 +6,6 @@ import { ModelWorkspaceRegistry } from './registry.js';
 import {
   MossOpenAIProviderService,
   ProviderRequestError,
-  type ProviderExecutionStatus,
 } from './service.js';
 import type { OpenAIChatCompletionRequest } from './types.js';
 
@@ -21,7 +20,6 @@ interface ProviderServerOptions {
   openClawApiUrl: string;
   openClawTimeoutMs: number;
   logger: Logger;
-  getExecutionStatus?: () => ProviderExecutionStatus;
 }
 
 interface ProviderServerHandle {
@@ -106,16 +104,7 @@ export async function startProviderServer(
     options.openClawTimeoutMs,
     logger,
   );
-  const provider = new MossOpenAIProviderService(
-    registry,
-    openClawClient,
-    logger,
-    options.getExecutionStatus
-      ? {
-          getExecutionStatus: options.getExecutionStatus,
-        }
-      : undefined,
-  );
+  const provider = new MossOpenAIProviderService(registry, openClawClient, logger);
   const startupModels = await registry.list();
 
   const server = createServer(async (request, response) => {

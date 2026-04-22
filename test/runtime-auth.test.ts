@@ -83,20 +83,21 @@ describe('runtime auth handling', () => {
     try {
       const result = await service.start();
 
-      expect(result.active).toBe(false);
-      expect(result.reason).toBe('disabled-auth-failed');
+      expect(result.active).toBe(true);
+      expect(result.reason).toBe('started');
       expect(startProviderServerMock).toHaveBeenCalledTimes(1);
-      const options = startProviderServerMock.mock.calls[0]?.[0];
-      expect(options.getExecutionStatus?.()).toEqual({
-        enabled: false,
-        status: 503,
-        code: 'plugin_auth_failed',
-        message: 'Plugin authentication failed',
-      });
       expect(
         entries.some(
           (entry) =>
             entry.level === 'warn' && entry.message.includes('authentication failed; plugin remains disabled'),
+        ),
+      ).toBe(true);
+      expect(
+        entries.some(
+          (entry) =>
+            entry.level === 'warn' &&
+            entry.message === 'Moss plugin running in fallback mode' &&
+            entry.meta?.reason === 'auth-failed',
         ),
       ).toBe(true);
     } finally {

@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ModelWorkspaceRegistry } from '../src/provider/registry.js';
 import { MossOpenAIProviderService } from '../src/provider/service.js';
-import type { ProviderRequestError } from '../src/provider/service.js';
 import type { OpenClawChatResponse } from '../src/types/messages.js';
 import type { Logger } from '../src/utils/logger.js';
 
@@ -89,7 +88,7 @@ describe('moss openai provider service', () => {
     expect(completion.model).toBe('moss-dev');
   });
 
-  it('keeps model listing available while execution is disabled and rejects chat safely', async () => {
+  it('defaults to agentId main when model config is missing', async () => {
     const root = await mkdtemp(join(tmpdir(), 'moss-provider-disabled-'));
     tempDirectories.push(root);
 
@@ -113,43 +112,22 @@ describe('moss openai provider service', () => {
       registry,
       { chat } as { chat: typeof chat },
       createLogger(),
-      {
-        getExecutionStatus: () => ({
-          enabled: false,
-          status: 503,
-          code: 'plugin_not_configured',
-          message: 'Plugin not configured',
-        }),
-      },
     );
 
-    expect(await service.listModels()).toEqual({
-      object: 'list',
-      data: [
+    const completion = await service.createChatCompletion({
+      model: 'moss-dev',
+      messages: [
         {
-          id: 'moss-dev',
-          object: 'model',
+          role: 'user',
+          content: 'Can you help?',
         },
       ],
     });
 
-    await expect(
-      service.createChatCompletion({
-        model: 'moss-dev',
-        messages: [
-          {
-            role: 'user',
-            content: 'Can you help?',
-          },
-        ],
-      }),
-    ).rejects.toEqual(
-      expect.objectContaining<Partial<ProviderRequestError>>({
-        status: 503,
-        code: 'plugin_not_configured',
-        message: 'Plugin not configured',
-      }),
-    );
-    expect(chat).not.toHaveBeenCalled();
+    expect(chat).toHaveBeenCalledWith({
+      agentId: 'main',
+      message: 'You are Moss Dev.\n\nUser:\nCan you help?',
+    });
+    expect(completion.choices[0]?.message.content).toBe('Done.');
   });
 });

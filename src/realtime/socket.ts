@@ -14,6 +14,8 @@ interface SocketGatewayOptions {
   onEvent: (event: RawChannelEvent) => Promise<void>;
 }
 
+const WILDCARD_ENTRY = '*';
+
 function looksLikeAuthenticationFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /(401|unauthori[sz]ed|auth|token|jwt|session|sign\s*in|login)/iu.test(message);
@@ -32,9 +34,11 @@ function toSocketAuthenticationError(error: unknown): AuthenticationError {
 export class WebUISocketGateway {
   private socket: Socket | undefined;
   private readonly allowedChannels: Set<string>;
+  private readonly allowsAllChannels: boolean;
 
   public constructor(private readonly options: SocketGatewayOptions) {
     this.allowedChannels = new Set(options.allowedChannels);
+    this.allowsAllChannels = this.allowedChannels.has(WILDCARD_ENTRY);
   }
 
   public async start(): Promise<void> {
@@ -81,7 +85,7 @@ export class WebUISocketGateway {
       socket.emit('user-join', { auth: { token: lastHandshakeToken } });
       socket.emit('join-channels', {
         auth: { token: lastHandshakeToken },
-        channel_ids: Array.from(this.allowedChannels),
+        channel_ids: this.allowsAllChannels ? [WILDCARD_ENTRY] : Array.from(this.allowedChannels),
       });
     });
 
@@ -179,7 +183,10 @@ export class WebUISocketGateway {
       return false;
     }
 
-    if (!event.channel_id || !this.allowedChannels.has(event.channel_id)) {
+    if (
+      !event.channel_id ||
+      (!this.allowsAllChannels && !this.allowedChannels.has(event.channel_id))
+    ) {
       this.options.logger.debug('Dropped event before router because channel is not allowed', {
         channelId: event.channel_id,
       });

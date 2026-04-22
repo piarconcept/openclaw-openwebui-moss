@@ -33,6 +33,7 @@ const ATTACHMENT_KEYS = ['enabled', 'maxBytes', 'tempDir'] as const;
 const RATE_LIMIT_KEYS = ['enabled', 'windowMs', 'maxMessages'] as const;
 const AGENT_KEYS = ['agentId', 'channelId', 'trigger'] as const;
 const LOG_LEVELS = new Set(['debug', 'info', 'warn', 'error']);
+const WILDCARD_ENTRY = '*';
 
 export const pluginConfigSchema = {
   type: 'object',
@@ -462,6 +463,7 @@ function validateRequiredAgentMappings(
   }
 
   const allowedChannelSet = new Set(allowedChannels);
+  const allowAllChannels = allowedChannelSet.has(WILDCARD_ENTRY);
   const seenTriggers = new Map<string, string>();
   const seenChannelMappings = new Map<string, string>();
 
@@ -475,7 +477,7 @@ function validateRequiredAgentMappings(
     }
 
     if (agent.channelId) {
-      if (!allowedChannelSet.has(agent.channelId)) {
+      if (!allowAllChannels && !allowedChannelSet.has(agent.channelId)) {
         issues.push(
           `config.agents.${agentKey}.channelId must also appear in allowedChannels: ${agent.channelId}`,
         );

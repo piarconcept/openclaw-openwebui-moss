@@ -163,7 +163,7 @@ Once connected, Open WebUI will see models such as:
 
 Selecting one of those models in Open WebUI sends the chat request to this provider, which then routes it into OpenClaw.
 
-When loaded as an OpenClaw extension through `activate()`, the embedded provider starts by default on `127.0.0.1:18790` unless `MOSS_PROVIDER_HOST` or `MOSS_PROVIDER_PORT` override it. In that mode, `GET /v1/models` stays available even if plugin bridge config is missing; `POST /v1/chat/completions` fails closed until the plugin is configured.
+When loaded as an OpenClaw extension through `activate()`, the embedded provider starts by default on `127.0.0.1:18790` unless `MOSS_PROVIDER_HOST` or `MOSS_PROVIDER_PORT` override it. If the legacy bridge config is missing or invalid, the plugin logs that it is running in fallback mode and keeps serving `GET /v1/models` and `POST /v1/chat/completions`.
 
 ## Docker
 

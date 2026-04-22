@@ -5,8 +5,14 @@ import {
   RateLimitError,
 } from '../utils/errors.js';
 
+const WILDCARD_ENTRY = '*';
+
+function allowsAll(entries: readonly string[]): boolean {
+  return entries.includes(WILDCARD_ENTRY);
+}
+
 export function assertAllowedChannel(channelId: string, allowedChannels: readonly string[]): void {
-  if (!allowedChannels.includes(channelId)) {
+  if (!allowsAll(allowedChannels) && !allowedChannels.includes(channelId)) {
     throw new AuthorizationError('CHANNEL_NOT_ALLOWED', `Channel ${channelId} is not allowed`, {
       channelId,
     });
@@ -14,7 +20,7 @@ export function assertAllowedChannel(channelId: string, allowedChannels: readonl
 }
 
 export function assertAllowedUser(userId: string, allowedUsers: readonly string[]): void {
-  if (!allowedUsers.includes(userId)) {
+  if (!allowsAll(allowedUsers) && !allowedUsers.includes(userId)) {
     throw new AuthorizationError('USER_NOT_ALLOWED', `User ${userId} is not allowed`, {
       userId,
     });

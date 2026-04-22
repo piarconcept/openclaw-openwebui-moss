@@ -54,8 +54,8 @@ describe('runtime provider exposure', () => {
     try {
       const result = await service.start();
       expect(result).toEqual({
-        active: false,
-        reason: 'disabled-unconfigured',
+        active: true,
+        reason: 'started',
       });
 
       expect(startProviderServerMock).toHaveBeenCalledTimes(1);
@@ -63,12 +63,7 @@ describe('runtime provider exposure', () => {
       expect(options.host).toBe('127.0.0.1');
       expect(options.port).toBe(18790);
       expect(options.modelsRootDir).toBe(join(tempDir, 'moss-models'));
-      expect(options.getExecutionStatus?.()).toEqual({
-        enabled: false,
-        status: 503,
-        code: 'plugin_not_configured',
-        message: 'Plugin not configured',
-      });
+      expect(options.getExecutionStatus).toBeUndefined();
     } finally {
       await service.stop();
       expect(closeProviderServerMock).toHaveBeenCalledTimes(1);

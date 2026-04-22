@@ -24,7 +24,6 @@ import { BasicRateLimiter, LoopProtector } from '../security/access-control.js';
 import type { ValidatedPluginConfig } from '../types/config.js';
 import { AuthenticationError } from '../utils/errors.js';
 import { createLogger, type LogMeta, type Logger } from '../utils/logger.js';
-import type { ProviderExecutionStatus } from '../provider/service.js';
 
 interface HostLoggerLike {
   debug?: (message: string, meta?: unknown) => void;
@@ -168,6 +167,17 @@ function logAuthenticationFailure(logger: Logger, error: unknown): void {
   logger.warn('Verify config.auth credentials and bot account access in Open WebUI');
 }
 
+function logFallbackMode(
+  logger: Logger,
+  reason: 'missing-config' | 'invalid-config' | 'auth-failed' | 'gateway-failed',
+  meta?: Record<string, unknown>,
+): void {
+  logger.warn('Moss plugin running in fallback mode', {
+    reason,
+    ...meta,
+  });
+}
+
 function assertValidatedConfig(config: ValidatedPluginConfig | Parameters<typeof validateRuntimeConfig>[0]): asserts config is ValidatedPluginConfig {
   if (config.auth.mode !== 'token' && config.auth.mode !== 'password') {
     throw new Error('validated config does not contain a runtime auth mode');
@@ -190,12 +200,6 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
   let gateway: WebUISocketGateway | null = null;
   let providerServer: Awaited<ReturnType<typeof startProviderServer>> | null = null;
   let startResult: ServiceStartResult | null = null;
-  const providerExecutionStatus: ProviderExecutionStatus = {
-    enabled: false,
-    status: 503,
-    code: 'plugin_not_configured',
-    message: 'Plugin not configured',
-  };
 
   return {
     logger,
@@ -211,50 +215,29 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         openClawApiUrl: runtime.openClawApiUrl,
         openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
         logger,
-        getExecutionStatus: () => providerExecutionStatus,
       });
-
-      const disableExecution = (
-        reason: Exclude<ServiceStartResult['reason'], 'started'>,
-        status: Omit<ProviderExecutionStatus, 'enabled'>,
-      ): ServiceStartResult => {
-        Object.assign(providerExecutionStatus, {
-          enabled: false,
-          ...status,
-        });
-        startResult = {
-          active: false,
-          reason,
-        };
-        return startResult;
-      };
-
-      const enableExecution = (): void => {
-        Object.assign(providerExecutionStatus, {
-          enabled: true,
-          status: 200,
-          code: 'enabled',
-          message: 'Provider execution enabled',
-        });
-      };
 
       if (!isPluginConfigured(loaded.config)) {
         logDisabledState(logger, loaded.loadIssues);
-        return disableExecution('disabled-unconfigured', {
-          status: 503,
-          code: 'plugin_not_configured',
-          message: 'Plugin not configured',
-        });
+        logFallbackMode(logger, 'missing-config');
+        startResult = {
+          active: true,
+          reason: 'started',
+        };
+        return startResult;
       }
 
       const runtimeIssues = [...loaded.loadIssues, ...validateRuntimeConfig(loaded.config)];
       if (runtimeIssues.length > 0) {
         logDisabledState(logger, runtimeIssues);
-        return disableExecution('disabled-invalid-config', {
-          status: 503,
-          code: 'plugin_invalid_config',
-          message: 'Plugin configuration is invalid',
+        logFallbackMode(logger, 'invalid-config', {
+          issues: runtimeIssues,
         });
+        startResult = {
+          active: true,
+          reason: 'started',
+        };
+        return startResult;
       }
 
       assertValidatedConfig(loaded.config);
@@ -274,20 +257,32 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         await authSession.getToken();
       } catch (error) {
         logAuthenticationFailure(logger, error);
-        return disableExecution('disabled-auth-failed', {
-          status: 503,
-          code: 'plugin_auth_failed',
-          message: 'Plugin authentication failed',
-        });
+        logFallbackMode(logger, 'auth-failed');
+        startResult = {
+          active: true,
+          reason: 'started',
+        };
+        return startResult;
       }
 
-      await prepareAttachmentDirectory(config);
-      if (config.attachments.enabled) {
-        await cleanupStaleDirectories(
-          config.attachments.tempDir,
-          runtime.staleAttachmentMaxAgeMs,
-          logger,
-        );
+      try {
+        await prepareAttachmentDirectory(config);
+        if (config.attachments.enabled) {
+          await cleanupStaleDirectories(
+            config.attachments.tempDir,
+            runtime.staleAttachmentMaxAgeMs,
+            logger,
+          );
+        }
+      } catch (error) {
+        logFallbackMode(logger, 'gateway-failed', {
+          error,
+        });
+        startResult = {
+          active: true,
+          reason: 'started',
+        };
+        return startResult;
       }
 
       const registry = buildAgentRegistry(config.agents);
@@ -336,17 +331,23 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
 
         if (error instanceof AuthenticationError) {
           logAuthenticationFailure(logger, error);
-          return disableExecution('disabled-auth-failed', {
-            status: 503,
-            code: 'plugin_auth_failed',
-            message: 'Plugin authentication failed',
-          });
+          logFallbackMode(logger, 'auth-failed');
+          startResult = {
+            active: true,
+            reason: 'started',
+          };
+          return startResult;
         }
 
-        throw error;
+        logFallbackMode(logger, 'gateway-failed', {
+          error,
+        });
+        startResult = {
+          active: true,
+          reason: 'started',
+        };
+        return startResult;
       }
-
-      enableExecution();
       logger.info('Service started', {
         allowedChannelCount: config.allowedChannels.length,
         allowedUserCount: config.allowedUsers.length,
@@ -377,12 +378,6 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
       }
 
       startResult = null;
-      Object.assign(providerExecutionStatus, {
-        enabled: false,
-        status: 503,
-        code: 'plugin_stopped',
-        message: 'Plugin stopped',
-      });
       logger.info('Service stopped');
     },
   };

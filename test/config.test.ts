@@ -75,6 +75,14 @@ describe('validateRuntimeConfig', () => {
     expect(validateRuntimeConfig(buildPasswordConfig())).toEqual([]);
   });
 
+  it('accepts wildcard allowedChannels and allowedUsers', () => {
+    const config = buildBaseConfig();
+    config.allowedChannels = ['*'];
+    config.allowedUsers = ['*'];
+
+    expect(validateRuntimeConfig(config)).toEqual([]);
+  });
+
   it('rejects duplicate triggers at runtime', () => {
     const config = buildBaseConfig();
     config.agents.dev.trigger = '@moss-editorial';
@@ -91,6 +99,14 @@ describe('validateRuntimeConfig', () => {
     expect(
       validateRuntimeConfig(config).some((issue) => issue.includes('duplicates channel')),
     ).toBe(true);
+  });
+
+  it('allows agent channel mappings outside the explicit list when wildcard channel access is enabled', () => {
+    const config = buildBaseConfig();
+    config.allowedChannels = ['*'];
+    config.agents.dev.channelId = 'channel-anything';
+
+    expect(validateRuntimeConfig(config)).toEqual([]);
   });
 
   it('fails closed when baseUrl or auth are missing', () => {
