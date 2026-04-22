@@ -11,47 +11,45 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "required": [
-      "baseUrl",
-      "token",
-      "botUserId",
-      "requireMention",
-      "allowedChannels",
-      "allowedUsers",
-      "agents",
-      "attachments",
-      "rateLimit"
-    ],
     "properties": {
       "baseUrl": {
-        "type": "string",
-        "format": "uri"
+        "type": "string"
       },
-      "token": {
-        "type": "string",
-        "minLength": 1
+      "auth": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["token", "password"]
+          },
+          "token": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
       },
       "botUserId": {
-        "type": "string",
-        "minLength": 1
+        "type": "string"
       },
       "requireMention": {
         "type": "boolean"
       },
       "allowedChannels": {
         "type": "array",
-        "minItems": 1,
         "items": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         }
       },
       "allowedUsers": {
         "type": "array",
-        "minItems": 1,
         "items": {
-          "type": "string",
-          "minLength": 1
+          "type": "string"
         }
       },
       "agents": {
@@ -59,19 +57,15 @@
         "additionalProperties": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["agentId"],
           "properties": {
             "channelId": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "trigger": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             },
             "agentId": {
-              "type": "string",
-              "minLength": 1
+              "type": "string"
             }
           }
         }
@@ -79,7 +73,6 @@
       "attachments": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["enabled", "maxBytes", "tempDir"],
         "properties": {
           "enabled": {
             "type": "boolean"
@@ -89,15 +82,13 @@
             "minimum": 1
           },
           "tempDir": {
-            "type": "string",
-            "minLength": 1
+            "type": "string"
           }
         }
       },
       "rateLimit": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["enabled", "windowMs", "maxMessages"],
         "properties": {
           "enabled": {
             "type": "boolean"

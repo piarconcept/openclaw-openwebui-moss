@@ -19,4 +19,4 @@ USER node
 ENV NODE_ENV=production
 ENV OPENWEBUI_MOSS_CONFIG_PATH=/app/config/plugin.config.json
 ENV OPENCLAW_API_URL=http://host.docker.internal:3000/api/chat
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/standalone.js"]

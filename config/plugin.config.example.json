@@ -1,6 +1,10 @@
 {
   "baseUrl": "https://openwebui.example.com",
-  "token": "replace-with-bearer-token",
+  "auth": {
+    "mode": "password",
+    "email": "bot@example.com",
+    "password": "replace-with-bot-password"
+  },
   "botUserId": "replace-with-open-webui-bot-user-id",
   "requireMention": true,
   "allowedChannels": ["channel-editorial", "channel-dev", "channel-ops"],

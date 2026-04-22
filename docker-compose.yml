@@ -10,7 +10,7 @@ services:
       OPENCLAW_API_URL: http://host.docker.internal:3000/api/chat
       LOG_LEVEL: info
     volumes:
-      - ./config/plugin.config.json:/app/config/plugin.config.json:ro
+      - ./config:/app/config:ro
       - ./tmp:/app/tmp
     extra_hosts:
       - host.docker.internal:host-gateway

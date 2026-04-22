@@ -17,22 +17,33 @@
     "CHANGELOG.md"
   ],
   "bin": {
-    "openclaw-openwebui-moss": "dist/index.js"
+    "openclaw-openwebui-moss": "dist/standalone.js",
+    "openclaw-openwebui-moss-provider": "dist/provider-standalone.js"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/standalone.ts",
+    "dev:provider": "tsx watch src/provider-standalone.ts",
+    "start:provider": "node dist/provider-standalone.js",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "npm run build"
   },
   "keywords": [
     "openclaw",
     "open-webui",
     "moss",
     "plugin",
-    "socketio"
+    "socketio",
+    "openai-compatible",
+    "provider"
   ],
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
   "author": "Moss",
   "license": "MIT",
   "dependencies": {

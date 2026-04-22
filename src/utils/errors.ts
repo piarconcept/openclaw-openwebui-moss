@@ -22,6 +22,7 @@ export class ConfigError extends OperationalError {
 }
 
 export class AuthorizationError extends OperationalError {}
+export class AuthenticationError extends OperationalError {}
 export class RoutingError extends OperationalError {}
 export class AttachmentError extends OperationalError {}
 export class RateLimitError extends OperationalError {}

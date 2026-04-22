@@ -1,16 +1,32 @@
 import { io, type Socket } from 'socket.io-client';
 
+import type { WebUIAuthSession } from '../api/webui-auth.js';
 import type { RawChannelEvent } from '../types/messages.js';
 import type { Logger } from '../utils/logger.js';
-import { IntegrationError } from '../utils/errors.js';
+import { AuthenticationError, IntegrationError } from '../utils/errors.js';
 
 interface SocketGatewayOptions {
   baseUrl: string;
-  token: string;
+  authSession: WebUIAuthSession;
   allowedChannels: readonly string[];
   botUserId: string;
   logger: Logger;
   onEvent: (event: RawChannelEvent) => Promise<void>;
+}
+
+function looksLikeAuthenticationFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /(401|unauthori[sz]ed|auth|token|jwt|session|sign\s*in|login)/iu.test(message);
+}
+
+function toSocketAuthenticationError(error: unknown): AuthenticationError {
+  return new AuthenticationError(
+    'WEBUI_SOCKET_AUTH_FAILED',
+    'Open WebUI Socket.IO authentication failed',
+    {
+      error: error instanceof Error ? error.message : String(error),
+    },
+  );
 }
 
 export class WebUISocketGateway {
@@ -26,23 +42,45 @@ export class WebUISocketGateway {
       return;
     }
 
+    let forceTokenRefresh = false;
+    let lastHandshakeToken = '';
+    let lastAuthError: AuthenticationError | null = null;
+    let hasConnectedOnce = false;
+
     const socket = io(this.options.baseUrl, {
       path: '/ws/socket.io',
       transports: ['websocket', 'polling'],
       reconnection: true,
+      reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 10000,
-      auth: {
-        token: this.options.token,
+      auth: (cb) => {
+        void (async () => {
+          try {
+            lastHandshakeToken = await this.options.authSession.getToken({
+              forceRefresh: forceTokenRefresh && this.options.authSession.canRefresh(),
+            });
+            forceTokenRefresh = false;
+            lastAuthError = null;
+            cb({ token: lastHandshakeToken });
+          } catch (error) {
+            forceTokenRefresh = false;
+            lastHandshakeToken = '';
+            lastAuthError =
+              error instanceof AuthenticationError ? error : toSocketAuthenticationError(error);
+            cb({ token: '' });
+          }
+        })();
       },
     });
     this.socket = socket;
 
     socket.on('connect', () => {
+      hasConnectedOnce = true;
       this.options.logger.info('Connected to Open WebUI Socket.IO');
-      socket.emit('user-join', { auth: { token: this.options.token } });
+      socket.emit('user-join', { auth: { token: lastHandshakeToken } });
       socket.emit('join-channels', {
-        auth: { token: this.options.token },
+        auth: { token: lastHandshakeToken },
         channel_ids: Array.from(this.allowedChannels),
       });
     });
@@ -52,11 +90,37 @@ export class WebUISocketGateway {
     });
 
     socket.io.on('reconnect_attempt', (attempt) => {
-      this.options.logger.warn('Socket.IO reconnect attempt', { attempt });
+      if (this.options.authSession.canRefresh() && !this.options.authSession.isDisabled()) {
+        forceTokenRefresh = true;
+        this.options.authSession.invalidate();
+      }
+
+      this.options.logger.warn('Socket.IO reconnect attempt', {
+        attempt,
+        refreshAuth: this.options.authSession.canRefresh(),
+      });
     });
 
     socket.on('connect_error', (error) => {
-      this.options.logger.error('Socket.IO connect error', { error });
+      const authError =
+        lastAuthError ??
+        (looksLikeAuthenticationFailure(error) ? toSocketAuthenticationError(error) : null);
+
+      if (hasConnectedOnce && authError && this.options.authSession.canRefresh()) {
+        forceTokenRefresh = true;
+        this.options.authSession.invalidate();
+        this.options.logger.warn('Socket.IO auth error detected, refreshing session for reconnect', {
+          error: authError,
+        });
+      }
+
+      this.options.logger.error('Socket.IO connect error', {
+        error: authError ?? error,
+      });
+    });
+
+    socket.io.on('reconnect_failed', () => {
+      this.options.logger.error('Socket.IO reconnection failed permanently');
     });
 
     socket.on('events:channel', (event: RawChannelEvent) => {
@@ -86,7 +150,10 @@ export class WebUISocketGateway {
 
       socket.once('connect_error', (error) => {
         clearTimeout(timeout);
-        reject(error);
+        const authError =
+          lastAuthError ??
+          (looksLikeAuthenticationFailure(error) ? toSocketAuthenticationError(error) : null);
+        reject(authError ?? error);
       });
     });
   }
@@ -101,6 +168,13 @@ export class WebUISocketGateway {
   }
 
   private shouldForward(event: RawChannelEvent): boolean {
+    if (this.options.authSession.isDisabled()) {
+      this.options.logger.warn('Dropped event before router because authentication is disabled', {
+        channelId: event.channel_id,
+      });
+      return false;
+    }
+
     if (event.data?.type !== 'message') {
       return false;
     }

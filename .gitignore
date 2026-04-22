@@ -7,3 +7,5 @@ coverage/
 .DS_Store
 tmp/
 config/*.local.json
+
+config/plugin.config.json
