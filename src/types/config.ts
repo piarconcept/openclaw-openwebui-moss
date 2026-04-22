@@ -79,6 +79,7 @@ export interface LoadedPluginConfig {
 export interface RuntimeSettings {
   configPath: string;
   openClawApiUrl: string;
+  openClawModel: string;
   openClawRequestTimeoutMs: number;
   staleAttachmentMaxAgeMs: number;
   logLevel: 'debug' | 'info' | 'warn' | 'error';

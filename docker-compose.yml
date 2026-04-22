@@ -6,7 +6,8 @@ services:
     image: moss/openclaw-openwebui-moss-provider:local
     restart: unless-stopped
     environment:
-      OPENCLAW_API_URL: http://host.docker.internal:18789/api/chat
+      OPENCLAW_API_URL: http://host.docker.internal:18789/v1/chat/completions
+      OPENCLAW_MODEL: openai-codex/gpt-5.4
       MOSS_MODELS_DIR: /app/moss-models
       MOSS_PROVIDER_HOST: 0.0.0.0
       MOSS_PROVIDER_PORT: 4000

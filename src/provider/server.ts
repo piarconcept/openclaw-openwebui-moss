@@ -18,6 +18,7 @@ interface ProviderServerOptions {
   port?: number;
   modelsRootDir?: string;
   openClawApiUrl: string;
+  openClawModel: string;
   openClawTimeoutMs: number;
   logger: Logger;
 }
@@ -101,6 +102,7 @@ export async function startProviderServer(
   const registry = new ModelWorkspaceRegistry(registryOptions);
   const openClawClient = new OpenClawChatClient(
     options.openClawApiUrl,
+    options.openClawModel,
     options.openClawTimeoutMs,
     logger,
   );

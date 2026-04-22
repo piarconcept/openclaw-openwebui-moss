@@ -67,6 +67,7 @@ void (async () => {
       port,
       modelsRootDir,
       openClawApiUrl: runtime.openClawApiUrl,
+      openClawModel: runtime.openClawModel,
       openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
       logger,
     });

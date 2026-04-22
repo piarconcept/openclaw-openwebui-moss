@@ -93,8 +93,48 @@ function extractLastUserMessage(messages: OpenAIChatMessage[]): string {
   return '';
 }
 
-export function buildModelPrompt(model: ModelDefinition, userMessage: string): string {
-  return `${model.identity.trim()}\n\nUser:\n${userMessage.trim()}`;
+function normalizeChatMessage(
+  message: OpenAIChatMessage,
+): { role: OpenAIChatMessage['role']; content: string } | null {
+  const content = extractTextContent(message.content).trim();
+  if (content === '') {
+    return null;
+  }
+
+  return {
+    role: message.role,
+    content,
+  };
+}
+
+export function buildModelSystemMessage(model: ModelDefinition): string {
+  const segments = [model.identity.trim()];
+
+  if (model.context.trim() !== '') {
+    segments.push(`Context:\n${model.context}`);
+  }
+
+  return segments.join('\n\n');
+}
+
+export function buildSessionMessages(
+  model: ModelDefinition,
+  messages: OpenAIChatMessage[],
+): Array<{
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content: string;
+}> {
+  const normalizedMessages = messages
+    .map((message) => normalizeChatMessage(message))
+    .filter((message) => message !== null);
+
+  return [
+    {
+      role: 'system',
+      content: buildModelSystemMessage(model),
+    },
+    ...normalizedMessages,
+  ];
 }
 
 export class MossOpenAIProviderService {
@@ -153,13 +193,13 @@ export class MossOpenAIProviderService {
       );
     }
 
-    const prompt = buildModelPrompt(model, lastUserMessage);
+    const sessionMessages = buildSessionMessages(model, request.messages);
 
     let response: OpenClawChatResponse;
     try {
       response = await this.openClawClient.chat({
         agentId: model.agentId || 'main',
-        message: prompt,
+        messages: sessionMessages,
       });
     } catch (error) {
       this.logger.error('OpenClaw call failed while serving chat completion', {
@@ -175,7 +215,10 @@ export class MossOpenAIProviderService {
 
     const reply = response.text.trim();
     const created = Math.floor(Date.now() / 1000);
-    const promptTokens = estimateTokenCount(prompt);
+    const promptTokens = sessionMessages.reduce(
+      (total, message) => total + estimateTokenCount(message.content),
+      0,
+    );
     const completionTokens = estimateTokenCount(reply);
 
     return {

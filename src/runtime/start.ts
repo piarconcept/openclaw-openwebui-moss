@@ -213,6 +213,7 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         port: providerSettings.port,
         modelsRootDir: providerSettings.modelsRootDir,
         openClawApiUrl: runtime.openClawApiUrl,
+        openClawModel: runtime.openClawModel,
         openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
         logger,
       });
@@ -289,6 +290,7 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
       const webUIClient = new WebUIClient(config.baseUrl, authSession, logger);
       const openClawClient = new OpenClawChatClient(
         runtime.openClawApiUrl,
+        runtime.openClawModel,
         runtime.openClawRequestTimeoutMs,
         logger,
       );

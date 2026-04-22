@@ -49,23 +49,33 @@ function normalizeAttachments(payload: Record<string, unknown>): OpenClawChatRes
   });
 }
 
-function normalizeText(payload: unknown): string {
-  if (typeof payload === 'string') {
-    return payload;
-  }
-
+function normalizeChatCompletionText(payload: unknown): string {
   if (!isRecord(payload)) {
     return '';
   }
 
-  const candidates = [payload.reply, payload.message, payload.text, payload.output];
-  const text = candidates.find((value) => typeof value === 'string');
-  return typeof text === 'string' ? text : '';
+  const choices = payload.choices;
+  if (!Array.isArray(choices)) {
+    return '';
+  }
+
+  const firstChoice = choices[0];
+  if (!isRecord(firstChoice)) {
+    return '';
+  }
+
+  const message = firstChoice.message;
+  if (!isRecord(message)) {
+    return '';
+  }
+
+  return typeof message.content === 'string' ? message.content : '';
 }
 
 export class OpenClawChatClient {
   public constructor(
     private readonly apiUrl: string,
+    private readonly model: string,
     private readonly timeoutMs: number,
     private readonly logger: Logger,
   ) {}
@@ -82,27 +92,53 @@ export class OpenClawChatClient {
         headers['X-Correlation-Id'] = request.correlationId;
       }
 
+      const messages =
+        Array.isArray(request.messages) && request.messages.length > 0
+          ? request.messages
+          : typeof request.message === 'string' && request.message.trim() !== ''
+            ? [
+                {
+                  role: 'user' as const,
+                  content: request.message,
+                },
+              ]
+            : null;
+
+      if (!messages) {
+        throw new IntegrationError(
+          'OPENCLAW_CHAT_INVALID_REQUEST',
+          'OpenClaw chat request requires message or messages',
+        );
+      }
+
       const response = await fetch(this.apiUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify(request),
+        body: JSON.stringify({
+          model: this.model,
+          messages,
+        }),
         signal: controller.signal,
       });
 
       if (!response.ok) {
-        throw new IntegrationError('OPENCLAW_CHAT_FAILED', 'OpenClaw /api/chat returned an error', {
+        throw new IntegrationError('OPENCLAW_CHAT_FAILED', 'OpenClaw /v1/chat/completions returned an error', {
           status: response.status,
           body: await response.text(),
         });
       }
 
       const payload = (await response.json()) as unknown;
-      if (!isRecord(payload) && typeof payload !== 'string') {
-        throw new IntegrationError('OPENCLAW_CHAT_INVALID', 'OpenClaw /api/chat returned an invalid payload');
+      const text = normalizeChatCompletionText(payload);
+      if (text === '') {
+        throw new IntegrationError(
+          'OPENCLAW_CHAT_INVALID',
+          'OpenClaw /v1/chat/completions returned an invalid payload',
+        );
       }
 
       return {
-        text: normalizeText(payload),
+        text,
         attachments: isRecord(payload) ? normalizeAttachments(payload) : [],
         raw: payload,
       };

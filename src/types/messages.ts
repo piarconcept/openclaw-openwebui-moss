@@ -109,7 +109,11 @@ export interface AgentResolution {
 
 export interface OpenClawChatRequest {
   agentId: string;
-  message: string;
+  message?: string;
+  messages?: Array<{
+    role: 'system' | 'user' | 'assistant' | 'tool';
+    content: string;
+  }>;
   sessionKey?: string;
   correlationId?: string;
   metadata?: Record<string, unknown>;

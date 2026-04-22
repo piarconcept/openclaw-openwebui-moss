@@ -2,7 +2,7 @@
 
 OpenAI-compatible model provider for Open WebUI.
 
-Open WebUI sees normal models through `GET /v1/models` and `POST /v1/chat/completions`, but each model is actually a filesystem-backed Moss profile that the provider translates into a call to OpenClaw `POST /api/chat`.
+Open WebUI sees normal models through `GET /v1/models` and `POST /v1/chat/completions`, but each model is actually a filesystem-backed Moss profile that the provider translates into a call to OpenClaw `POST /v1/chat/completions`.
 
 ## Core Idea
 
@@ -13,7 +13,7 @@ Open WebUI
   -> Moss provider
   -> load model folder from filesystem
   -> build prompt from IDENTITY.md + context files + user message
-  -> OpenClaw POST /api/chat
+  -> OpenClaw POST /v1/chat/completions
   -> OpenAI-compatible response
 ```
 
@@ -124,7 +124,7 @@ User:
 <last user message>
 ```
 
-6. Sends the prompt to OpenClaw `POST /api/chat`.
+6. Sends the prompt to OpenClaw `POST /v1/chat/completions` using the gateway model.
 7. Returns the answer as an OpenAI-compatible `chat.completion` payload.
 
 ## Run Locally
@@ -139,7 +139,8 @@ corepack pnpm build
 Start the provider:
 
 ```bash
-export OPENCLAW_API_URL=http://127.0.0.1:18789/api/chat
+export OPENCLAW_API_URL=http://127.0.0.1:18789/v1/chat/completions
+export OPENCLAW_MODEL=openai-codex/gpt-5.4
 export MOSS_MODELS_DIR=$HOME/.openclaw/workspace/moss-models
 export MOSS_PROVIDER_PORT=4000
 node dist/provider-standalone.js
@@ -177,7 +178,8 @@ The included compose file:
 
 - exposes port `4000`
 - mounts `${HOME}/.openclaw/workspace/moss-models` into the container
-- points to `http://host.docker.internal:18789/api/chat` for OpenClaw by default
+- points to `http://host.docker.internal:18789/v1/chat/completions` for OpenClaw by default
+- uses `openai-codex/gpt-5.4` as the default gateway model unless `OPENCLAW_MODEL` overrides it
 
 ## Project Defaults
 

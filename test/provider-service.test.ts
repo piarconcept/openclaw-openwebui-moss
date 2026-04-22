@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 describe('moss openai provider service', () => {
-  it('lists filesystem models and sends a minimal OpenClaw chat payload', async () => {
+  it('lists filesystem models and sends model identity plus full chat history to OpenClaw', async () => {
     const root = await mkdtemp(join(tmpdir(), 'moss-provider-'));
     tempDirectories.push(root);
 
@@ -82,7 +82,20 @@ describe('moss openai provider service', () => {
     const request = chat.mock.calls[0]?.[0];
     expect(request).toEqual({
       agentId: 'dev-agent',
-      message: 'You are Moss Dev.\n\nUser:\nRefactor this safely.',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are Moss Dev.\n\nContext:\nFile: docs/architecture.md\nUse layered services.',
+        },
+        {
+          role: 'assistant',
+          content: 'Old answer',
+        },
+        {
+          role: 'user',
+          content: 'Refactor this safely.',
+        },
+      ],
     });
     expect(completion.choices[0]?.message.content).toBe('Done.');
     expect(completion.model).toBe('moss-dev');
@@ -118,6 +131,10 @@ describe('moss openai provider service', () => {
       model: 'moss-dev',
       messages: [
         {
+          role: 'system',
+          content: 'Stay concise.',
+        },
+        {
           role: 'user',
           content: 'Can you help?',
         },
@@ -126,7 +143,20 @@ describe('moss openai provider service', () => {
 
     expect(chat).toHaveBeenCalledWith({
       agentId: 'main',
-      message: 'You are Moss Dev.\n\nUser:\nCan you help?',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are Moss Dev.',
+        },
+        {
+          role: 'system',
+          content: 'Stay concise.',
+        },
+        {
+          role: 'user',
+          content: 'Can you help?',
+        },
+      ],
     });
     expect(completion.choices[0]?.message.content).toBe('Done.');
   });

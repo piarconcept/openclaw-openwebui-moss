@@ -665,6 +665,19 @@ function validateAbsoluteUrl(name: string, value: string): string {
   }
 }
 
+function readRequiredStringEnv(
+  name: string,
+  value: string | undefined,
+  fallback: string,
+): string {
+  const normalized = (value ?? fallback).trim();
+  if (normalized === '') {
+    throw new ConfigError([`${name} must be a non-empty string when provided`]);
+  }
+
+  return normalized;
+}
+
 export function loadRuntimeSettings(env: Record<string, string | undefined> = process.env): RuntimeSettings {
   const logLevel = env.LOG_LEVEL ?? 'info';
   if (!LOG_LEVELS.has(logLevel)) {
@@ -675,7 +688,12 @@ export function loadRuntimeSettings(env: Record<string, string | undefined> = pr
     configPath: env.OPENWEBUI_MOSS_CONFIG_PATH ?? join(process.cwd(), 'config', 'plugin.config.json'),
     openClawApiUrl: validateAbsoluteUrl(
       'OPENCLAW_API_URL',
-      env.OPENCLAW_API_URL ?? 'http://127.0.0.1:18789/api/chat',
+      env.OPENCLAW_API_URL ?? 'http://127.0.0.1:18789/v1/chat/completions',
+    ),
+    openClawModel: readRequiredStringEnv(
+      'OPENCLAW_MODEL',
+      env.OPENCLAW_MODEL,
+      'openai-codex/gpt-5.4',
     ),
     openClawRequestTimeoutMs: readPositiveIntegerEnv(
       'OPENCLAW_REQUEST_TIMEOUT_MS',
