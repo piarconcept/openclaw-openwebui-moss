@@ -72,13 +72,28 @@ function normalizeChatCompletionText(payload: unknown): string {
   return typeof message.content === 'string' ? message.content : '';
 }
 
+function summarizeErrorBody(body: string): string {
+  const normalized = body.replace(/\s+/gu, ' ').trim();
+  if (normalized === '') {
+    return '';
+  }
+
+  return normalized.length > 300 ? `${normalized.slice(0, 297)}...` : normalized;
+}
+
 export class OpenClawChatClient {
+  private readonly gatewayToken: string | undefined;
+
   public constructor(
     private readonly apiUrl: string,
     private readonly model: string,
     private readonly timeoutMs: number,
     private readonly logger: Logger,
-  ) {}
+    gatewayToken?: string,
+  ) {
+    const normalizedToken = gatewayToken?.trim();
+    this.gatewayToken = normalizedToken ? normalizedToken : undefined;
+  }
 
   public async chat(request: OpenClawChatRequest): Promise<OpenClawChatResponse> {
     const controller = new AbortController();
@@ -88,6 +103,9 @@ export class OpenClawChatClient {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
+      if (this.gatewayToken) {
+        headers.Authorization = `Bearer ${this.gatewayToken}`;
+      }
       if (typeof request.correlationId === 'string' && request.correlationId.trim() !== '') {
         headers['X-Correlation-Id'] = request.correlationId;
       }
@@ -122,10 +140,18 @@ export class OpenClawChatClient {
       });
 
       if (!response.ok) {
-        throw new IntegrationError('OPENCLAW_CHAT_FAILED', 'OpenClaw /v1/chat/completions returned an error', {
-          status: response.status,
-          body: await response.text(),
-        });
+        const body = await response.text();
+        const summary = summarizeErrorBody(body);
+        throw new IntegrationError(
+          'OPENCLAW_CHAT_FAILED',
+          summary === ''
+            ? `OpenClaw /v1/chat/completions returned HTTP ${response.status}`
+            : `OpenClaw /v1/chat/completions returned HTTP ${response.status}: ${summary}`,
+          {
+            status: response.status,
+            body,
+          },
+        );
       }
 
       const payload = (await response.json()) as unknown;

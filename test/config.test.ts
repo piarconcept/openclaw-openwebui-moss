@@ -1,9 +1,14 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
 import {
   defaultConfig,
   isPluginConfigured,
   normalizePluginConfig,
+  resolveOpenClawGatewayToken,
   validateRuntimeConfig,
 } from '../src/config.js';
 import { buildBaseConfig, buildPasswordConfig } from './fixtures.js';
@@ -125,5 +130,43 @@ describe('validateRuntimeConfig', () => {
 
     const issues = validateRuntimeConfig(config);
     expect(issues).toContain('config.auth.password is required when auth.mode is password');
+  });
+});
+
+describe('resolveOpenClawGatewayToken', () => {
+  it('prefers OPENCLAW_GATEWAY_TOKEN when provided', async () => {
+    await expect(
+      resolveOpenClawGatewayToken({
+        OPENCLAW_GATEWAY_TOKEN: 'env-token',
+      }),
+    ).resolves.toBe('env-token');
+  });
+
+  it('reads the gateway token from openclaw.json when env is absent', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'moss-openclaw-config-'));
+    const configPath = join(tempDir, 'openclaw.json');
+
+    try {
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          gateway: {
+            auth: {
+              mode: 'token',
+              token: 'config-token',
+            },
+          },
+        }),
+        'utf8',
+      );
+
+      await expect(
+        resolveOpenClawGatewayToken({
+          OPENCLAW_CONFIG_PATH: configPath,
+        }),
+      ).resolves.toBe('config-token');
+    } finally {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   });
 });

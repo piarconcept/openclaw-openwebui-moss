@@ -14,6 +14,7 @@ import {
   loadRuntimeSettings,
   PLUGIN_ID,
   prepareAttachmentDirectory,
+  resolveOpenClawGatewayToken,
   validateRuntimeConfig,
 } from '../config.js';
 import { startProviderServer } from '../provider/server.js';
@@ -187,6 +188,7 @@ function assertValidatedConfig(config: ValidatedPluginConfig | Parameters<typeof
 export async function createService(options?: CreateServiceOptions): Promise<ServiceInstance> {
   const runtime = loadRuntimeSettings(process.env);
   const providerSettings = loadEmbeddedProviderSettings(process.env);
+  const openClawGatewayToken = await resolveOpenClawGatewayToken(process.env);
   const logger =
     options?.logger ??
     createLogger({
@@ -215,6 +217,7 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         openClawApiUrl: runtime.openClawApiUrl,
         openClawModel: runtime.openClawModel,
         openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
+        ...(openClawGatewayToken ? { openClawGatewayToken } : {}),
         logger,
       });
 
@@ -293,6 +296,7 @@ export async function createService(options?: CreateServiceOptions): Promise<Ser
         runtime.openClawModel,
         runtime.openClawRequestTimeoutMs,
         logger,
+        openClawGatewayToken,
       );
 
       const router = new SecureMessageRouter({

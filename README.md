@@ -22,6 +22,7 @@ The MVP is intentionally simple:
 - models come from the filesystem, not JSON
 - prompts come from files, not hardcoded strings
 - context is basic `.md` and `.txt` concatenation
+- the model identity is injected as a `system` message and the full OpenAI chat history is forwarded
 - no embeddings
 - no vector database
 - no hot-reload daemon; the provider rescans on requests so filesystem changes are picked up automatically
@@ -114,18 +115,21 @@ For a chat completion request, the provider:
 1. Finds the requested model folder.
 2. Loads `IDENTITY.md`.
 3. Loads context files from the same folder tree.
-4. Extracts the last user message from the OpenAI request.
-5. Builds this prompt:
+4. Builds a `system` message from the model identity and context.
+5. Forwards the full OpenAI `messages` history to OpenClaw, prepending that model `system` message.
+6. Sends the request to OpenClaw `POST /v1/chat/completions` using the gateway model.
+7. Returns the answer as an OpenAI-compatible `chat.completion` payload.
 
 ```text
+System:
 <IDENTITY.md>
 
-User:
-<last user message>
-```
+Context:
+<concatenated .md/.txt files>
 
-6. Sends the prompt to OpenClaw `POST /v1/chat/completions` using the gateway model.
-7. Returns the answer as an OpenAI-compatible `chat.completion` payload.
+Messages:
+<full OpenAI chat history>
+```
 
 ## Run Locally
 
@@ -141,10 +145,15 @@ Start the provider:
 ```bash
 export OPENCLAW_API_URL=http://127.0.0.1:18789/v1/chat/completions
 export OPENCLAW_MODEL=openai-codex/gpt-5.4
+export OPENCLAW_GATEWAY_TOKEN=your-openclaw-gateway-token
 export MOSS_MODELS_DIR=$HOME/.openclaw/workspace/moss-models
 export MOSS_PROVIDER_PORT=4000
 node dist/provider-standalone.js
 ```
+
+If `OPENCLAW_GATEWAY_TOKEN` is not set, the provider falls back to reading
+`$OPENCLAW_CONFIG_PATH`, or `~/.openclaw/openclaw.json`, and uses
+`gateway.auth.token` when the OpenClaw gateway is configured in token mode.
 
 Development mode:
 

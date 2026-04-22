@@ -20,6 +20,7 @@ interface ProviderServerOptions {
   openClawApiUrl: string;
   openClawModel: string;
   openClawTimeoutMs: number;
+  openClawGatewayToken?: string;
   logger: Logger;
 }
 
@@ -105,6 +106,7 @@ export async function startProviderServer(
     options.openClawModel,
     options.openClawTimeoutMs,
     logger,
+    options.openClawGatewayToken,
   );
   const provider = new MossOpenAIProviderService(registry, openClawClient, logger);
   const startupModels = await registry.list();

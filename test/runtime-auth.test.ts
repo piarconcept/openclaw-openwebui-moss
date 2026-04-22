@@ -62,6 +62,7 @@ describe('runtime auth handling', () => {
     await writeFile(configPath, JSON.stringify(buildPasswordConfig()), 'utf8');
 
     vi.stubEnv('OPENWEBUI_MOSS_CONFIG_PATH', configPath);
+    vi.stubEnv('OPENCLAW_CONFIG_PATH', join(tempDir, 'missing-openclaw.json'));
     vi.stubEnv('OPENCLAW_API_URL', 'http://127.0.0.1:18789/v1/chat/completions');
     vi.stubEnv('MOSS_PROVIDER_HOST', '127.0.0.1');
     vi.stubEnv('MOSS_PROVIDER_PORT', '18790');

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-import { loadRuntimeSettings } from './config.js';
+import { loadRuntimeSettings, resolveOpenClawGatewayToken } from './config.js';
 import { startProviderServer } from './provider/server.js';
 import { createLogger } from './utils/logger.js';
 
@@ -62,6 +62,7 @@ process.on('SIGTERM', () => {
 
 void (async () => {
   try {
+    const openClawGatewayToken = await resolveOpenClawGatewayToken(process.env);
     handle = await startProviderServer({
       host,
       port,
@@ -69,6 +70,7 @@ void (async () => {
       openClawApiUrl: runtime.openClawApiUrl,
       openClawModel: runtime.openClawModel,
       openClawTimeoutMs: runtime.openClawRequestTimeoutMs,
+      ...(openClawGatewayToken ? { openClawGatewayToken } : {}),
       logger,
     });
   } catch (error) {

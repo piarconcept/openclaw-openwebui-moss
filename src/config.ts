@@ -1,4 +1,5 @@
 import { access, mkdir, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
 import type {
@@ -676,6 +677,50 @@ function readRequiredStringEnv(
   }
 
   return normalized;
+}
+
+function extractGatewayTokenFromOpenClawConfig(config: unknown): string | undefined {
+  if (!isRecord(config)) {
+    return undefined;
+  }
+
+  const gateway = config.gateway;
+  if (!isRecord(gateway)) {
+    return undefined;
+  }
+
+  const auth = gateway.auth;
+  if (!isRecord(auth) || auth.mode !== 'token') {
+    return undefined;
+  }
+
+  if (typeof auth.token !== 'string') {
+    return undefined;
+  }
+
+  const token = auth.token.trim();
+  return token === '' ? undefined : token;
+}
+
+export async function resolveOpenClawGatewayToken(
+  env: Record<string, string | undefined> = process.env,
+): Promise<string | undefined> {
+  const envToken = env.OPENCLAW_GATEWAY_TOKEN?.trim();
+  if (envToken) {
+    return envToken;
+  }
+
+  const configPath =
+    env.OPENCLAW_CONFIG_PATH?.trim() ||
+    join(env.OPENCLAW_HOME?.trim() || join(homedir(), '.openclaw'), 'openclaw.json');
+
+  try {
+    const raw = await readFile(configPath, 'utf8');
+    const parsed = JSON.parse(raw) as unknown;
+    return extractGatewayTokenFromOpenClawConfig(parsed);
+  } catch {
+    return undefined;
+  }
 }
 
 export function loadRuntimeSettings(env: Record<string, string | undefined> = process.env): RuntimeSettings {
